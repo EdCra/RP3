@@ -1,0 +1,520 @@
+close all
+clear all
+
+
+% Import an STL mesh, returning a PATCH-compatible face-vertex structure
+fv = stlread('marssurface10.stl');
+
+%Extracting x,y and z coordiantes from vertices
+vertices = fv.vertices;
+x = vertices(:,1);
+y = vertices(:,2);
+z = vertices(:,3);
+
+[xData,yData,zData] = prepareSurfaceData(x,y,z);
+
+% Set up fittype and options.
+ft = fittype( 'poly55' );
+opts = fitoptions( 'Method', 'LinearLeastSquares' );
+opts.Normalize = 'on';
+opts.Robust = 'Bisquare';
+
+% Fit model to data.
+[fitresult, gof] = fit( [xData, yData], zData, ft, opts );
+
+sfit = fitresult;
+
+numberofiteration = 9;
+
+%Setting initial position
+x1 = -1.4;
+y1 = 1.4;
+
+% select different starting point
+[v_1,val_1,flag_1,time_1,object_value_1]=NMS(@fun,[x1,y1]);
+
+%% Removing duplicate points in matrix
+s = size(object_value_1);
+sx = s(2);
+
+logic_matrix = ones(2,sx);
+
+for c = 1:sx-1
+    valuex = object_value_1(1,c);
+    valuenextx = object_value_1(1,c+1);
+    
+    valuey = object_value_1(2,c);
+    valuenexty = object_value_1(2,c+1);
+    
+    if valuex == valuenextx && valuey == valuenexty
+        logic_matrix(:,c+1) = 0;
+    end
+end
+
+positionspoints = logic_matrix.*object_value_1;
+positionspoints(:,all(positionspoints==0))=[];
+
+%% Plotting contour plot
+% [x,y]=meshgrid(-2:0.005:2);
+% f = -91.45 -3.956.*x -0.2582.*y + 9.663.*x.^2 -0.676.*x.*y + 9.165.*y.^2 + 2.11.*x.^3 + 0.1397.*x.^2.*y + 5.243.*x.*y.^2 + 0.6586.*y.^3 -1.754.*x.^4 + 0.1329.*x^3.*y -3.496.*x.^2.*y.^2 + 0.06367.*x.*y.^3 -1.495.*y.^4 -0.3438.*x.^5 -0.0321*x^4*y -1.675.*x.^3.*y.^2 -0.09971.*x.^2.*y.^3 -1.196.*x.*y.^4 -0.1242.*y.^5;
+% x1 = positionspoints(1,1:15);  
+% y1 = positionspoints(2,1:15);
+% 
+% figure('Name','Contour plot');
+% contour(x,y,f,200);
+% hold on
+% plot(x1,y1);
+% xlabel('x');
+% ylabel('y');
+
+%% Getting height of points
+s = size(positionspoints);
+sx = s(2);
+
+positionspoints = bsxfun(@plus, positionspoints, 2);
+positionspoints = bsxfun(@times, positionspoints, 25);
+
+for c = 1:sx
+    
+    x = positionspoints(1,c);
+    y = positionspoints(2,c);
+    height = feval(sfit,x,y);
+    heightmatrix(c) =  height;
+end
+
+%% ULtimate position matrix 
+positionmatrix = [positionspoints;heightmatrix];
+
+%% Getting length of hops
+
+for c = 1:sx-1
+    x1 = positionspoints(1,c);
+    y1 = positionspoints(2,c);
+    
+    x2 = positionspoints(1,c+1);
+    y2 = positionspoints(2,c+1);
+    
+    distance = sqrt((x2 - x1)^2 + (y2 - y1)^2);
+    distancematrix(c) = distance;
+end
+
+%% Getting height difference of hops
+
+s = size(heightmatrix);
+s = s(2);
+
+for c = 1:s-1
+    y1 = heightmatrix(c);
+    y2 = heightmatrix(c+1);
+    
+    heightdifference = y1 - y2;
+    heightdifferencematrix(c) = heightdifference;
+end
+
+%% Plotting balistic trajectory on function
+
+positionmatrix3d = positionmatrix;  
+
+s = numberofiteration + 1;
+
+%Extracting x, y and z components
+xpoints = positionmatrix(1,1:s);  
+ypoints = positionmatrix(2,1:s);  
+zpoints = positionmatrix(3,1:s); 
+
+figure('Name','Function plot');
+plot(sfit)
+hold on
+         
+for nn = 1:numberofiteration
+
+    %Setting function variables
+    theta = 45;
+    g = 3.721;
+    H = heightdifferencematrix(nn);
+    R = distancematrix(nn);
+    
+    n = nn;
+    
+    %Invocking position matrix function
+    [final_position_matrix] = positionmatrixfunc(theta,g,H,R,positionmatrix3d,n);
+    ballistic_position_matrix = positionmatrixfunc(theta,g,H,R,positionmatrix3d,n);
+    
+    bx = ballistic_position_matrix(1,:);
+    by = ballistic_position_matrix(2,:);
+    bz = ballistic_position_matrix(3,:);
+    
+    plot3(bx, by, bz, 'b-', 'LineWidth', 4);
+end
+
+hold on
+scatter3(xpoints,ypoints,zpoints,20,'r','filled')
+axis equal
+zlim([-120 -50])
+grid on
+xlabel('X (m)');
+ylabel('Y (m)');
+zlabel('Z (m)');
+view(-30,30)
+set(gca,'XTick',[0 10 20 30 40 50 60 70 80 90] ); 
+set(gca,'XTickLabel',[0 400 800 1200 1600 2000 2400 2800 3200 3600 4000] ); 
+set(gca,'YTick',[0 10 20 30 40 50 60 70 80 90] ); 
+set(gca,'YTickLabel',[0 400 800 1200 1600 2000 2400 2800 3200 3600 4000] );
+
+%% Plotting 3D plot of points on original stl file
+
+%Importing the stl mesh
+fv = stlread('MarsSurface10.stl');
+
+figure('Name','STL plot');
+patch(fv,'FaceColor', [0.8 0.8 1.0],'EdgeColor',[0 0 0],'EdgeAlpha',0.15,'FaceLighting','gouraud','AmbientStrength',1);
+hold on
+
+for nn = 1:numberofiteration
+
+    %Setting function variables
+    theta = 45;
+    g = 3.721;
+    H = heightdifferencematrix(nn)
+    R = distancematrix(nn);
+    
+    n = nn;
+    
+    %Invocking position matrix function
+    [final_position_matrix] = positionmatrixfunc(theta,g,H,R,positionmatrix3d,n);
+    ballistic_position_matrix = positionmatrixfunc(theta,g,H,R,positionmatrix3d,n);
+    
+    bx = ballistic_position_matrix(1,:);
+    by = ballistic_position_matrix(2,:);
+    bz = ballistic_position_matrix(3,:);
+    
+    plot3(bx, by, bz, 'b-', 'LineWidth', 4);
+    
+    mass = 2;
+    
+    H = H*40
+    R = R*40
+    vreq = sqrt((1/(2*cosd(theta)^2))*((g*R^2)/(R*tand(theta) + H)));
+    VreqM(nn,:) = [vreq];
+    
+    alpha = ballistic_position_matrix(4,:);
+    alpha = alpha(1)
+    alpha2(nn,:) = [alpha];
+end
+
+hold on
+scatter3(xpoints,ypoints,zpoints,20,'r','filled')
+axis equal
+camlight('headlight');
+material('dull');
+xlim([10 90])
+ylim([10 90])
+zlim([-120 -50])
+xlabel('X (m)');
+ylabel('Y (m)');
+zlabel('Z (m)');
+view(-30,30)
+set(gca,'XTick',[0 10 20 30 40 50 60 70 80 90] ); 
+set(gca,'XTickLabel',[0 400 800 1200 1600 2000 2400 2800 3200 3600 4000] ); 
+set(gca,'YTick',[0 10 20 30 40 50 60 70 80 90] ); 
+set(gca,'YTickLabel',[0 400 800 1200 1600 2000 2400 2800 3200 3600 4000] );
+set(gca,'ZTick',[-120  -110 -100 -90 -80 -70 -60 -50] ); 
+set(gca,'ZTickLabel',[-3600 -3200 -2800 -2400 -2000 -1600 -1200 -800] );
+
+
+%% Functions
+
+function [final_position_matrix] = positionmatrixfunc(theta,g,H,R,positionmatrix3d, n)
+    
+%Calculating speed necessary
+v = sqrt((1/(2*cosd(theta)^2))*((g*R^2)/(R*tand(theta) + H)));
+
+% x and y angle 
+
+alpha = atand((positionmatrix3d(2,n+1) - positionmatrix3d(2,n))/(positionmatrix3d(1,n+1) - positionmatrix3d(1,n)));
+alpha = round(alpha);
+if positionmatrix3d(1,n+1) >= positionmatrix3d(1,n) && alpha ~= -90.0000
+    alpha = atand((positionmatrix3d(2,n+1) - positionmatrix3d(2,n))/(positionmatrix3d(1,n+1) - positionmatrix3d(1,n)));
+end
+
+if alpha == -90.0000 && positionmatrix3d(2,n+1) > positionmatrix3d(2,n)
+    alpha = 90;
+end
+
+if positionmatrix3d(1,n+1) <= positionmatrix3d(1,n)
+    alpha = atand((positionmatrix3d(2,n+1) - positionmatrix3d(2,n))/(positionmatrix3d(1,n+1) - positionmatrix3d(1,n))) + 180;
+end
+
+if positionmatrix3d(1,n) == positionmatrix3d(1,n+1) && positionmatrix3d(2,n+1) < positionmatrix3d(2,n)
+    alpha = -90;
+end
+
+u_horinzontal = v*cosd(theta);
+u_vertical = v*sind(theta);
+
+u_horinzontal_x = u_horinzontal*cosd(alpha);
+u_horinzontal_y = u_horinzontal*sind(alpha);
+
+%Solving equation for time taken for collision with ground
+a = 0.5*g;
+b = -u_vertical;
+c = -H;
+t_duration = roots([a, b, c]);
+t_duration = max(t_duration);
+
+%Calculating position array of ballistic curve
+bt = linspace(0, t_duration, 1000);
+bx = positionmatrix3d(1,n) + u_horinzontal_x*bt;
+by = positionmatrix3d(2,n) + u_horinzontal_y*bt;
+bz = positionmatrix3d(3,n) - 0.5*g*bt.^2 + u_vertical*bt;
+
+alpha = ones(1,1000)*alpha;
+alpha(:) = alpha;
+
+final_position_matrix = [bx; by; bz; alpha];
+end
+
+function f = fun(v)
+x = v(1);
+y = v(2);
+f = -91.45 -3.956.*x -0.2582.*y + 9.663.*x.^2 -0.676.*x.*y + 9.165.*y.^2 + 2.11.*x.^3 + 0.1397.*x.^2.*y + 5.243.*x.*y.^2 + 0.6586.*y.^3 -1.754.*x.^4 + 0.1329.*x^3.*y -3.496.*x.^2.*y.^2 + 0.06367.*x.*y.^3 -1.495.*y.^4 -0.3438.*x.^5 -0.0321*x^4*y -1.675.*x.^3.*y.^2 -0.09971.*x.^2.*y.^3 -1.196.*x.*y.^4 -0.1242.*y.^5;
+end
+
+function [x,fval,flag,time,object_value]=NMS(fun,x0,max_time,eps)
+% realization of Nelder-Mead Simplex
+% max_time:the max number of iteration ,the default value is 10000
+% eps: accuracy, the default value is 1e-8
+
+% examine the parameters
+if nargin<2
+    error('please enter 2 parameters at least, including funtion and starting point')
+end
+
+% set default value for parameter
+if nargin<3
+    max_time=10000;
+end
+if nargin<4
+    eps=1e-8;
+end
+
+% Initialize  parameters
+lambda=0.1 ; alpha=1; gamma=2; beta=0.5; delta=0.5;
+
+n=length(x0);% get dimension
+p=[];
+p(:,1)=x0(:); % transpose the matrix
+object_value=x0(:);
+
+% compulate the starting point
+for i=2:(n+1)
+    e=zeros(n,1);
+    e(i-1)=1;
+    p(:,i)=p(:,1)+lambda*e;
+end
+
+% compulate the value
+for i=1:(n+1)
+    value(:,i)=feval(fun,p(:,i));
+end
+
+% sorting and ready to iterate
+[value, index]=sort(value);
+p=p(:,index);
+
+% start iteration
+while max_time
+    % breaking condition
+    %if max(max(abs(p(:,2:n+1)-p(:,1:n)))) <eps
+        %break
+    %end
+    mean=(value(1)+value(n)+value(n+1))/3;
+    indicator=sqrt(((value(1)-mean)^2+(value(n)-mean)^2+(value(n+1)-mean)^2)/3);
+    if indicator<eps
+        break
+    end
+    
+    % selet the three point
+    best_point=p(:,1);
+    best_point_value=value(:,1);
+    sub_worst_point=p(:,n);
+    sub_worst_point_value=value(:,n);
+    worst_point=p(:,n+1);
+    worst_point_value=value(:,n+1);
+    
+    % Reflection
+    center=(best_point+sub_worst_point)/2;
+    reflection_point=center+alpha*(center-worst_point);
+    reflection_point_value=feval(fun,reflection_point);
+    
+    if reflection_point_value < best_point_value
+        % Expansion
+        expansion_point=center+gamma*(reflection_point-center);
+        expansion_point_value=feval(fun,expansion_point);
+        if expansion_point_value<reflection_point_value
+            p(:,n+1)=expansion_point;
+            value(:,n+1)=expansion_point_value;
+        else
+            p(:,n+1)=reflection_point;
+            value(:,n+1)=reflection_point_value;
+        end       
+    else
+        if reflection_point_value<sub_worst_point_value
+            p(:,n+1)=reflection_point;
+            value(:,n+1)=reflection_point_value;
+        else
+            % Outside Constraction
+            shrink=0;
+            if reflection_point_value < worst_point_value
+                outside_constraction_point=center+beta*(reflection_point-center);
+                outside_constraction_point_value=feval(fun,outside_constraction_point);
+                if outside_constraction_point_value < worst_point_value
+                    p(:,n+1)=outside_constraction_point;
+                    value(:,n+1)=outside_constraction_point_value ;
+                else
+                    shrink=true;
+                end
+                % Inside Constraction
+            else
+                inside_constraction_point=center+beta*(worst_point-center);
+                inside_constraction_point_value=feval(fun,inside_constraction_point);
+                if inside_constraction_point_value < worst_point_value
+                    p(:,n+1)=inside_constraction_point;
+                    value(:,n+1)=inside_constraction_point_value ;
+                else
+                    shrink=1;
+                end
+            end
+            
+            % Shrinkage
+            if shrink
+                for i=2:n+1
+                    p(:,i)=best_point+delta*(p(:,i)-best_point);
+                    value(:,i)=feval(fun,p(:,i));
+                end
+            end
+        end
+    end
+    
+    
+    %  resort and ready to iterate
+    [value, index]=sort(value);
+    p=p(:,index);
+    max_time=max_time-1;
+    object_value=[object_value p(:,1)];
+end
+
+
+x=p(:,1);
+fval=value(:,1);
+time=max_time;
+if max_time>0
+    flag=1;
+else
+    flag=0;
+end
+
+end
+
+function varargout = stlread(file)
+
+    if ~exist(file,'file')
+        error(['File ''%s'' not found. If the file is not on MATLAB''s path' ...
+               ', be sure to specify the full path to the file.'], file);
+    end
+    
+    fid = fopen(file,'r');    
+    if ~isempty(ferror(fid))
+        error(lasterror); 
+    end
+    
+    M = fread(fid,inf,'uint8=>uint8');
+    fclose(fid);
+    
+    [f,v,n] = stlbinary(M);
+    
+    varargout = cell(1,nargout);
+    switch nargout        
+        case 2
+            varargout{1} = f;
+            varargout{2} = v;
+        case 3
+            varargout{1} = f;
+            varargout{2} = v;
+            varargout{3} = n;
+        otherwise
+            varargout{1} = struct('faces',f,'vertices',v);
+    end
+end
+
+function [F,V,N] = stlbinary(M)
+    F = [];
+    V = [];
+    N = [];
+    
+    if length(M) < 84
+        error('MATLAB:stlread:incorrectFormat', ...
+              'Incomplete header information in binary STL file.');
+    end
+    
+    
+    numFaces = typecast(M(81:84),'uint32');
+   
+    if numFaces == 0
+        warning('MATLAB:stlread:nodata','No data in STL file.');
+        return
+    end
+    
+    T = M(85:end);
+    F = NaN(numFaces,3);
+    V = NaN(3*numFaces,3);
+    N = NaN(numFaces,3);
+    
+    numRead = 0;
+    while numRead < numFaces
+        
+        i1    = 50 * numRead + 1;
+        i2    = i1 + 50 - 1;
+        facet = T(i1:i2)';
+        
+        n  = typecast(facet(1:12),'single');
+        v1 = typecast(facet(13:24),'single');
+        v2 = typecast(facet(25:36),'single');
+        v3 = typecast(facet(37:48),'single');
+        
+        n = double(n);
+        v = double([v1; v2; v3]);
+        
+           
+        fInd  = numRead + 1;        
+        vInd1 = 3 * (fInd - 1) + 1;
+        vInd2 = vInd1 + 3 - 1;
+        
+        V(vInd1:vInd2,:) = v;
+        F(fInd,:)        = vInd1:vInd2;
+        N(fInd,:)        = n;
+        
+        numRead = numRead + 1;
+    end
+    
+end
+
+function [F,V,N] = stlascii(M)
+    warning('MATLAB:stlread:ascii','ASCII STL files currently not supported.');
+    F = [];
+    V = [];
+    N = [];
+end
+
+function tf = isbinary(A)
+
+    if isempty(A) || length(A) < 5
+        error('MATLAB:stlread:incorrectFormat', ...
+              'File does not appear to be an ASCII or binary STL file.');
+    end    
+    if strcmpi('solid',char(A(1:5)'))
+        tf = false; % ASCII
+    else
+        tf = true;  % Binary
+    end
+end
