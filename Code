@@ -156,10 +156,6 @@ xlabel('X (m)');
 ylabel('Y (m)');
 zlabel('Z (m)');
 view(-30,30)
-set(gca,'XTick',[0 10 20 30 40 50 60 70 80 90] ); 
-set(gca,'XTickLabel',[0 400 800 1200 1600 2000 2400 2800 3200 3600 4000] ); 
-set(gca,'YTick',[0 10 20 30 40 50 60 70 80 90] ); 
-set(gca,'YTickLabel',[0 400 800 1200 1600 2000 2400 2800 3200 3600 4000] );
 
 %% Plotting 3D plot of points on original stl file
 
@@ -214,12 +210,6 @@ xlabel('X (m)');
 ylabel('Y (m)');
 zlabel('Z (m)');
 view(-30,30)
-set(gca,'XTick',[0 10 20 30 40 50 60 70 80 90] ); 
-set(gca,'XTickLabel',[0 400 800 1200 1600 2000 2400 2800 3200 3600 4000] ); 
-set(gca,'YTick',[0 10 20 30 40 50 60 70 80 90] ); 
-set(gca,'YTickLabel',[0 400 800 1200 1600 2000 2400 2800 3200 3600 4000] );
-set(gca,'ZTick',[-120  -110 -100 -90 -80 -70 -60 -50] ); 
-set(gca,'ZTickLabel',[-3600 -3200 -2800 -2400 -2000 -1600 -1200 -800] );
 
 
 %% Functions
